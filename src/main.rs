@@ -1,3 +1,17 @@
+use clap::Parser;
+use iji::cli::{Cli, Commands};
+
 fn main() {
-    println!("iji - simple package manager");
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Insall { packages, force } => {
+            println!("pkg: {:?}, force: {:?}", packages, force)
+        }
+        Commands::List => println!("listing packages"),
+        Commands::Update { packages } if packages.is_empty() => {
+            println!("Updating all packages")
+        }
+        Commands::Update { packages } => println!("removing {:?}", packages),
+        Commands::Remove { packages } => println!("removing {:?}", packages),
+    }
 }
