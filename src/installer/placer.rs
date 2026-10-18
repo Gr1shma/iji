@@ -46,7 +46,7 @@ mod tests {
         fs::write(&art, "v1").unwrap();
         fs::set_permissions(&art, fs::Permissions::from_mode(0o755)).unwrap();
 
-        let placed = place(&[art.clone()], &bin).unwrap();
+        let placed = place(std::slice::from_ref(&art), &bin).unwrap();
         assert_eq!(placed, [bin.join("tool")]);
         assert_eq!(fs::read_to_string(&placed[0]).unwrap(), "v1");
         assert_eq!(

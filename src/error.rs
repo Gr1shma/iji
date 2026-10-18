@@ -40,7 +40,10 @@ pub enum IjiError {
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
-    Toml(#[from] toml::de::Error),
+    TomlSer(#[from] toml::ser::Error),
+
+    #[error(transparent)]
+    TomlDe(#[from] toml::de::Error),
 }
 
 pub type Result<T> = std::result::Result<T, IjiError>;
