@@ -42,7 +42,7 @@ fn visible(v: Verbosity, kind: Kind) -> bool {
 }
 
 fn use_color(is_tty: bool, no_color: Option<OsString>) -> bool {
-    is_tty && no_color.map_or(true, |v| v.is_empty())
+    is_tty && no_color.is_none_or(|v| v.is_empty())
 }
 
 fn write_line(mut out: impl Write, color: bool, tag: &str, code: &str, msg: &dyn Display) {

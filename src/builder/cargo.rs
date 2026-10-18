@@ -32,10 +32,7 @@ impl BuildSystem for Cargo {
         for name in names {
             let exe = bin_dir.join(exe_name(&name));
             if !exe.is_file() {
-                return Err(IjiError::CommandFailed(format!(
-                    "artifact `{}` missing after build",
-                    exe.display()
-                )));
+                return Err(IjiError::NoBinaries(exe));
             }
             out.push(exe);
         }

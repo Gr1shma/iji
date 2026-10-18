@@ -16,6 +16,21 @@ pub enum IjiError {
     #[error("command failed: {0}")]
     CommandFailed(String),
 
+    #[error("no url given for `{0}`; pass a git URL (named packages are not supported yet)")]
+    NoUrl(String),
+
+    #[error("{} is already installed by `{owner}`; use --force to overwrite", .path.display())]
+    FileConflict { path: PathBuf, owner: String },
+
+    #[error("{0} package(s) failed")]
+    PackagesFailed(usize),
+
+    #[error("invalid build artifact `{}`: no file name", .0.display())]
+    InvalidArtifact(PathBuf),
+
+    #[error("expected binary not found after build: {}", .0.display())]
+    NoBinaries(PathBuf),
+
     #[error("no HOME dir: set the relevant IJI_* env var or $HOME")]
     NoHomeDir,
 

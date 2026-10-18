@@ -7,9 +7,9 @@ pub fn place(artifacts: &[PathBuf], bin_dir: &Path) -> Result<Vec<PathBuf>> {
     let mut placed = Vec::with_capacity(artifacts.len());
 
     for art in artifacts {
-        let name = art.file_name().ok_or_else(|| {
-            IjiError::CommandFailed(format!("artifact `{}` has no file name", art.display()))
-        })?;
+        let name = art
+            .file_name()
+            .ok_or_else(|| IjiError::InvalidArtifact(art.clone()))?;
         let dest = bin_dir.join(name);
 
         let mut tmp_name = std::ffi::OsString::from(".");
