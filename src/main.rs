@@ -1,17 +1,14 @@
-use clap::Parser;
-use iji::cli::{Cli, Commands};
+use std::process::ExitCode;
 
-fn main() {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Install { packages, force } => {
-            println!("pkg: {:?}, force: {:?}", packages, force)
+use clap::Parser;
+use iji::{cli::Cli, util::log};
+
+fn main() -> ExitCode {
+    match iji::run(Cli::parse()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            log::error(e);
+            ExitCode::FAILURE
         }
-        Commands::List => println!("listing packages"),
-        Commands::Update { packages } if packages.is_empty() => {
-            println!("Updating all packages")
-        }
-        Commands::Update { packages } => println!("removing {:?}", packages),
-        Commands::Remove { packages } => println!("removing {:?}", packages),
     }
 }
