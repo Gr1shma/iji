@@ -10,7 +10,7 @@ pub struct PackageSpec {
     pub target: Option<String>,
 }
 
-fn validate_name(name: &str) -> Result<()> {
+pub fn validate_name(name: &str) -> Result<()> {
     let bad = name.is_empty()
         || name.starts_with('.')
         || !name
