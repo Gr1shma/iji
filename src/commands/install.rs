@@ -1,13 +1,8 @@
-use std::fs;
-use std::path::{Path, PathBuf};
-
-use crate::builder::detect;
+use crate::commands::build;
 use crate::config::Config;
 use crate::db::{Database, TomlStore};
-use crate::installer::place;
 use crate::package::{InstalledPackage, PackageSpec};
 use crate::util::log;
-use crate::vcs::{Git, Vcs};
 use crate::{IjiError, Result};
 
 pub fn run(cfg: &Config, packages: &[String], force: bool) -> Result<()> {
@@ -50,26 +45,13 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
         .url
         .clone()
         .ok_or_else(|| IjiError::NoUrl(name.to_owned()))?;
-    let target = spec.target.as_deref();
-
-    let src = cfg.source_dir(name);
-    if src.exists() {
-        fs::remove_dir_all(&src)?;
-    }
 
     log::info(format!("fetching {name} from {url}"));
-    Git.fetch(&url, &src, spec.version.as_deref())?;
-    let commit = Git.head(&src)?;
+    let commit = build::fetch(cfg, name, &url, spec.version.as_deref())?;
 
-    let builder = detect(&src)?;
-    log::info(format!("building {name} with {}", builder.name()));
-    builder.build(&src, target)?;
-
-    let artifacts = builder.artifacts(&src, target)?;
-    if !force {
-        check_conflicts(&db.all()?, name, &artifacts, &cfg.bin_dir)?;
-    }
-    let files = place(&artifacts, &cfg.bin_dir)?;
+    // --force skips the conflict check by passing no other packages.
+    let others = if force { Vec::new() } else { db.all()? };
+    let files = build::build_and_place(cfg, name, spec.target.as_deref(), &others)?;
 
     db.insert(InstalledPackage {
         name: name.to_owned(),
@@ -81,56 +63,4 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
     })?;
     log::success(format!("installed {name}"));
     Ok(true)
-}
-
-fn check_conflicts(
-    installed: &[InstalledPackage],
-    name: &str,
-    artifacts: &[PathBuf],
-    bin_dir: &Path,
-) -> Result<()> {
-    for file in artifacts.iter().filter_map(|a| a.file_name()) {
-        let dest = bin_dir.join(file);
-        if let Some(owner) = installed
-            .iter()
-            .find(|p| p.name != name && p.files.contains(&dest))
-        {
-            return Err(IjiError::FileConflict {
-                path: dest,
-                owner: owner.name.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn pkg(name: &str, files: &[&str]) -> InstalledPackage {
-        InstalledPackage {
-            name: name.into(),
-            url: "u".into(),
-            version: None,
-            target: None,
-            commit: None,
-            files: files.iter().map(PathBuf::from).collect(),
-        }
-    }
-
-    #[test]
-    fn refuses_to_overwrite_another_packages_file() {
-        let installed = [pkg("a", &["/bin/tool"])];
-        let artifacts = [PathBuf::from("/src/target/release/tool")];
-        let err = check_conflicts(&installed, "b", &artifacts, Path::new("/bin")).unwrap_err();
-        assert!(matches!(err, IjiError::FileConflict { .. }));
-    }
-
-    #[test]
-    fn allows_overwriting_its_own_files() {
-        let installed = [pkg("a", &["/bin/tool"])];
-        let artifacts = [PathBuf::from("/src/target/release/tool")];
-        assert!(check_conflicts(&installed, "a", &artifacts, Path::new("/bin")).is_ok());
-    }
 }

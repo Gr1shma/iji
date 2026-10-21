@@ -51,9 +51,6 @@ pub enum IjiError {
         source: std::io::Error,
     },
 
-    #[error("`{0}` is not implemented yet")]
-    NotImplemented(&'static str),
-
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
