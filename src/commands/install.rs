@@ -59,6 +59,7 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
 
     log::info(format!("fetching {name} from {url}"));
     Git.fetch(&url, &src, spec.version.as_deref())?;
+    let commit = Git.head(&src)?;
 
     let builder = detect(&src)?;
     log::info(format!("building {name} with {}", builder.name()));
@@ -75,6 +76,7 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
         url,
         version: spec.version,
         target: spec.target,
+        commit: Some(commit),
         files,
     })?;
     log::success(format!("installed {name}"));
@@ -112,6 +114,7 @@ mod tests {
             url: "u".into(),
             version: None,
             target: None,
+            commit: None,
             files: files.iter().map(PathBuf::from).collect(),
         }
     }

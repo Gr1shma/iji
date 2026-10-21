@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::Command};
 
 use super::Vcs;
 use crate::{IjiError, Result, util::process::run};
@@ -27,6 +27,24 @@ impl Vcs for Git {
         args.extend(["--", url, dest_str]);
 
         run("git", &args, parent)
+    }
+    fn head(&self, repo: &Path) -> Result<String> {
+        let out = Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(repo)
+            .output()
+            .map_err(|e| {
+                IjiError::CommandFailed(format!("could not run `git` in {}: {e}", repo.display()))
+            })?;
+
+        if !out.status.success() {
+            return Err(IjiError::CommandFailed(format!(
+                "`git rev-parse HEAD` in {} exited with {}",
+                repo.display(),
+                out.status
+            )));
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
     }
 }
 
@@ -79,6 +97,22 @@ mod tests {
 
         assert!(Git.fetch(url, &root.join("bad"), Some("nope")).is_err());
 
+        let head = Git.head(&root.join("head")).unwrap();
+        let tagged = Git.head(&root.join("tagged")).unwrap();
+        assert_eq!(head.len(), 40);
+        assert!(head.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(head, tagged);
+
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn head_fails_outside_a_repo() {
+        let dir = std::env::temp_dir().join(format!("iji-git-nohead-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+
+        assert!(matches!(Git.head(&dir), Err(IjiError::CommandFailed(_))));
+
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -79,6 +79,7 @@ mod tests {
             url: format!("https://example.com/{name}"),
             version: version.map(Into::into),
             target: None,
+            commit: None,
             files: vec![PathBuf::from(format!("/bin/{name}"))],
         }
     }

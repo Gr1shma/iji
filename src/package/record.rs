@@ -8,5 +8,7 @@ pub struct InstalledPackage {
     pub url: String,
     pub version: Option<String>,
     pub target: Option<String>,
+    #[serde(default)]
+    pub commit: Option<String>,
     pub files: Vec<PathBuf>,
 }

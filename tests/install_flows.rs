@@ -38,10 +38,10 @@ fn install_then_remove_round_trip() {
     let root = std::env::temp_dir().join(format!("iji-flow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     let repo = make_repo(&root, "hello-iji");
-    let cfg = Config::with_root(&root.join("iji"));
+    let cfg = Config::with_root(root.join("iji"));
     let url = format!("file://{}", repo.display());
 
-    install::run(&cfg, &[url.clone()], false).unwrap();
+    install::run(&cfg, std::slice::from_ref(&url), false).unwrap();
     let bin = cfg.bin_dir.join("hello-iji");
     assert!(bin.exists());
     let db = TomlStore::new(cfg.db_file());
