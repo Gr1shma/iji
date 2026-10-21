@@ -4,7 +4,7 @@ use iji::cli::{Cli, Commands};
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Insall { packages, force } => {
+        Commands::Install { packages, force } => {
             println!("pkg: {:?}, force: {:?}", packages, force)
         }
         Commands::List => println!("listing packages"),

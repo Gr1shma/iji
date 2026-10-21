@@ -10,9 +10,9 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Insall one or more packages
+    /// Install one or more packages
     #[command(visible_alias = "i")]
-    Insall {
+    Install {
         #[arg(required = true, value_name = "PKG")]
         packages: Vec<String>,
 
