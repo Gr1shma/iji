@@ -27,11 +27,12 @@ pub(crate) fn build_and_place(
     installed: &[InstalledPackage],
 ) -> Result<Vec<PathBuf>> {
     let src = cfg.source_dir(name);
+    let stage = cfg.build_dir(name);
     let builder = detect(&src)?;
     log::info(format!("building {name} with {}", builder.name()));
-    builder.build(&src, target)?;
+    builder.build(&src, &stage, target)?;
 
-    let artifacts = builder.artifacts(&src, target)?;
+    let artifacts = builder.artifacts(&src, &stage, target)?;
     check_conflicts(installed, name, &artifacts, &cfg.bin_dir)?;
     place(&artifacts, &cfg.bin_dir)
 }

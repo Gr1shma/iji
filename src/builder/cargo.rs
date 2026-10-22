@@ -13,7 +13,7 @@ impl BuildSystem for Cargo {
         "cargo"
     }
 
-    fn build(&self, src: &Path, target: Option<&str>) -> Result<()> {
+    fn build(&self, src: &Path, _stage: &Path, target: Option<&str>) -> Result<()> {
         let mut args: Vec<&str> = vec!["build", "--release"];
         if let Some(bin) = target {
             args.extend(["--bin", bin]);
@@ -21,7 +21,7 @@ impl BuildSystem for Cargo {
         run("cargo", &args, src)
     }
 
-    fn artifacts(&self, src: &Path, target: Option<&str>) -> Result<Vec<PathBuf>> {
+    fn artifacts(&self, src: &Path, _stage: &Path, target: Option<&str>) -> Result<Vec<PathBuf>> {
         let bin_dir = src.join("target").join("release");
         let names = match target {
             Some(name) => vec![name.to_owned()],
