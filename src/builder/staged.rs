@@ -61,7 +61,7 @@ mod tests {
         fs::write(&tool, "").unwrap();
         fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
 
-        assert_eq!(executables(&stage).unwrap(), [tool.clone()]);
+        assert_eq!(executables(&stage).unwrap(), std::slice::from_ref(&tool));
 
         fs::remove_file(&tool).unwrap();
         assert!(matches!(executables(&stage), Err(IjiError::NoBinaries(_))));
