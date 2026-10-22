@@ -35,11 +35,12 @@ Here are the commands:
 - `update` (or `u`): update packages. With no names, it updates everything.
 - `remove` (or `r`): uninstall packages
 
-These options work with the commands:
+These options work with every command:
 
-- `-f`, `--force`: reinstall even when the package is already there
 - `-q`, `--quiet`: only print warnings and errors
 - `-v`, `--verbose`: print git and build output too
+
+`install` also takes `-f`, `--force`: reinstall even when the package is already there, and skip the check for files owned by another package.
 
 ## Installing a package
 
@@ -62,6 +63,13 @@ iji install https://github.com/u/r@v1.2,mytool
 
 The package name comes from the end of the URL, with `.git` removed. Add `@version` to install a tag or branch. Packages installed this way stay on that version, so `update` leaves them alone.
 
+To update or remove a package, use its name (the last part of the URL):
+
+```sh
+iji update r
+iji remove r
+```
+
 A target is useful when a Cargo repo builds more than one binary. It tells iji which one you want.
 
 ## What works
@@ -69,6 +77,11 @@ A target is useful when a Cargo repo builds more than one binary. It tells iji w
 iji is still pretty early. Right now it only builds Cargo projects and only runs on Unix.
 
 When you run `update`, iji checks the latest commit and rebuilds only if something changed. If the package is pinned to a version, it gets skipped.
+
+Known limitations:
+
+- `CARGO_TARGET_DIR` and a custom `target-dir` in `.cargo/config` aren't honored.
+- `install --force` leaves behind files an older version installed that the new one doesn't (`update` cleans these up).
 
 ## Configuration
 

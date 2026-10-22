@@ -2,6 +2,9 @@
 name = "iji"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "A simple package manager that builds packages from git repos"
+repository = "https://github.com/Gr1shma/iji"
 readme = "README.md"
 license = "MIT"
 
