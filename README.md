@@ -6,7 +6,13 @@ iji is a small package manager for programs that live in git repos. Point it at 
 
 ## Install
 
-You'll need Rust and Cargo.
+From crates.io (needs Rust and Cargo):
+
+```sh
+cargo install iji
+```
+
+Or from source:
 
 ```sh
 git clone https://github.com/Gr1shma/iji
@@ -14,11 +20,15 @@ cd iji
 cargo install --path .
 ```
 
+Building packages also needs the tool for whichever build system the repo uses (`cargo`, `go`, `cmake`, or `make`).
+
 iji puts package binaries in `~/.local/bin`. If that folder isn't in your `PATH` yet, add it:
 
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+`cargo install` puts iji itself in `~/.cargo/bin`, which is separate from the directory where iji installs packages.
 
 ## Usage
 
@@ -70,18 +80,43 @@ iji update r
 iji remove r
 ```
 
-A target is useful when a Cargo repo builds more than one binary. It tells iji which one you want.
+A target is useful when a repo builds more than one thing. What it means depends on the build system:
+
+| Build system | `target` |
+| --- | --- |
+| Cargo | Binary name (`--bin`) |
+| Go | Package path, such as `cmd/foo` (defaults to `./...`) |
+| CMake | Build target (`--target`); the install step still runs afterward |
+| Make | Goal for the first `make` run; `make install` still runs afterward |
+
+For example, to build only the `cmd/foo` package in a Go repo:
+
+```sh
+iji install https://github.com/u/r@v1.2,cmd/foo
+```
 
 ## What works
 
-iji is still pretty early. Right now it only builds Cargo projects and only runs on Unix.
+iji is still pretty early, and it only runs on Unix. It detects the build system from the repo:
+
+| Build system | Detected by | Tool needed |
+| --- | --- | --- |
+| Cargo | `Cargo.toml` | `cargo` |
+| Go | `go.mod` | `go` |
+| CMake | `CMakeLists.txt` | `cmake` |
+| Make | `GNUmakefile`, `makefile`, or `Makefile` | `make` |
+
+Detection happens in that order. Go, CMake, and Make builds stage their executables in `usr/bin`, and iji copies those into your bin directory. Files a project installs elsewhere (libraries, data, man pages) aren't installed yet.
 
 When you run `update`, iji checks the latest commit and rebuilds only if something changed. If the package is pinned to a version, it gets skipped.
 
 Known limitations:
 
-- `CARGO_TARGET_DIR` and a custom `target-dir` in `.cargo/config` aren't honored.
-- `install --force` leaves behind files an older version installed that the new one doesn't (`update` cleans these up).
+- Cargo `CARGO_TARGET_DIR` / custom `target-dir` isn't supported.
+- Only executables are installed; libraries and other files are ignored.
+- Make/CMake need install rules that put binaries in `<prefix>/bin` (CMake 3.15+). Make must honor `DESTDIR`/`PREFIX`; CMake must use relative destinations.
+- Go builds may need network access; without a target, all `main` packages are installed.
+- `install --force` can leave orphaned files that `update` and `remove` can't clean.
 
 ## Configuration
 
