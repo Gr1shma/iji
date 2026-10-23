@@ -144,7 +144,6 @@ Known limitations:
 - Only executables are installed; libraries and other files are ignored.
 - Make/CMake need install rules that put binaries in `<prefix>/bin` (CMake 3.15+). Make must honor `DESTDIR`/`PREFIX`; CMake must use relative destinations.
 - Go builds may need network access; without a target, all `main` packages are installed.
-- `install --force` can leave orphaned files that `update` and `remove` can't clean.
 
 ## Configuration
 
