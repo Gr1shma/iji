@@ -31,6 +31,9 @@ pub enum IjiError {
     #[error("invalid build artifact `{}`: no file name", .0.display())]
     InvalidArtifact(PathBuf),
 
+    #[error("unsafe recorded path `{}`", .0.display())]
+    UnsafePath(PathBuf),
+
     #[error("expected binary not found after build: {}", .0.display())]
     NoBinaries(PathBuf),
 

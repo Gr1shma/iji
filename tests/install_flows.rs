@@ -34,6 +34,24 @@ fn make_repo(root: &Path, name: &str) -> PathBuf {
     repo
 }
 
+fn make_bins_repo(root: &Path, name: &str, bins: &[&str]) -> PathBuf {
+    let repo = root.join(name);
+    fs::create_dir_all(repo.join("src/bin")).unwrap();
+    fs::write(
+        repo.join("Cargo.toml"),
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+    )
+    .unwrap();
+    for bin in bins {
+        fs::write(repo.join(format!("src/bin/{bin}.rs")), "fn main() {}\n").unwrap();
+    }
+
+    git(&repo, &["init", "-q"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "init"]);
+    repo
+}
+
 #[test]
 fn install_then_remove_round_trip() {
     let root = std::env::temp_dir().join(format!("iji-flow-{}", std::process::id()));
@@ -54,6 +72,32 @@ fn install_then_remove_round_trip() {
     remove::run(&cfg, &["hello-iji".to_owned()]).unwrap();
     assert!(!bin.exists());
     assert!(db.get("hello-iji").unwrap().is_none());
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn force_reinstall_removes_stale_files() {
+    let root = std::env::temp_dir().join(format!("iji-flow-force-stale-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    let repo = make_bins_repo(&root, "two-bins", &["a", "b"]);
+    let cfg = Config::with_root(root.join("iji"));
+    let url = format!("file://{}", repo.display());
+    let db = TomlStore::new(cfg.db_file());
+
+    install::run(&cfg, std::slice::from_ref(&url), false).unwrap();
+    assert!(cfg.bin_dir.join("a").exists());
+    assert!(cfg.bin_dir.join("b").exists());
+
+    fs::remove_file(repo.join("src/bin/b.rs")).unwrap();
+    git(&repo, &["commit", "-q", "-a", "-m", "drop b"]);
+
+    install::run(&cfg, &[url], true).unwrap();
+    assert!(cfg.bin_dir.join("a").exists());
+    assert!(!cfg.bin_dir.join("b").exists());
+
+    let installed = db.get("two-bins").unwrap().unwrap();
+    assert_eq!(installed.files, [cfg.bin_dir.join("a")]);
 
     fs::remove_dir_all(&root).unwrap();
 }

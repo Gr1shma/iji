@@ -1,5 +1,6 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io;
+use std::path::{Component, Path, PathBuf};
 
 use crate::builder::detect;
 use crate::config::Config;
@@ -37,6 +38,26 @@ pub(crate) fn build_and_place(
     place(&artifacts, &cfg.bin_dir)
 }
 
+/// True if `path` is absolute and has no `..` component.
+pub(crate) fn is_safe_recorded_path(path: &Path) -> bool {
+    path.is_absolute() && !path.components().any(|c| matches!(c, Component::ParentDir))
+}
+
+/// Removes files from the old install that the new install no longer provides.
+pub(crate) fn remove_stale(old: &[PathBuf], new_files: &[PathBuf]) {
+    for path in old.iter().filter(|f| !new_files.contains(f)) {
+        if !is_safe_recorded_path(path) {
+            log::warn(format!("refusing to remove {}", path.display()));
+            continue;
+        }
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => log::warn(format!("could not remove {}: {e}", path.display())),
+        }
+    }
+}
+
 /// Fails if an artifact would overwrite a file owned by a different package.
 fn check_conflicts(
     installed: &[InstalledPackage],
@@ -71,6 +92,14 @@ mod tests {
             target: None,
             commit: None,
             files: files.iter().map(PathBuf::from).collect(),
+        }
+    }
+
+    #[test]
+    fn recorded_paths_must_be_absolute_without_parent_dirs() {
+        assert!(is_safe_recorded_path(Path::new("/home/u/.local/bin/x")));
+        for bad in ["bin/x", "../../etc/x", "/home/u/../../etc/x"] {
+            assert!(!is_safe_recorded_path(Path::new(bad)), "{bad}");
         }
     }
 

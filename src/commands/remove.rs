@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+use super::build::is_safe_recorded_path;
 use crate::config::Config;
 use crate::db::{Database, TomlStore};
 use crate::package::validate_name;
@@ -45,18 +46,23 @@ fn remove_one(cfg: &Config, db: &mut impl Database, name: &str) -> Result<()> {
 }
 
 fn remove_files(files: &[PathBuf]) -> Result<()> {
-    let mut first_err = None;
+    let mut first_err: Option<IjiError> = None;
     for path in files {
+        if !is_safe_recorded_path(path) {
+            log::error(format!("refusing to remove {}", path.display()));
+            first_err.get_or_insert(IjiError::UnsafePath(path.clone()));
+            continue;
+        }
         match fs::remove_file(path) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
             Err(e) => {
                 log::error(format!("could not remove {}: {e}", path.display()));
-                first_err.get_or_insert(e);
+                first_err.get_or_insert(e.into());
             }
         }
     }
-    first_err.map_or(Ok(()), |e| Err(e.into()))
+    first_err.map_or(Ok(()), Err)
 }
 
 fn remove_dir_if_exists(path: &std::path::Path) -> io::Result<()> {
@@ -81,6 +87,19 @@ mod tests {
         remove_files(&[present.clone(), missing]).unwrap();
 
         assert!(!present.exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn refuses_paths_with_parent_components() {
+        let dir = std::env::temp_dir().join(format!("iji-remove-unsafe-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let victim = dir.join("victim");
+        fs::write(&victim, "x").unwrap();
+        let sneaky = dir.join("..").join(dir.file_name().unwrap()).join("victim");
+
+        assert!(remove_files(&[sneaky]).is_err());
+        assert!(victim.exists());
         fs::remove_dir_all(&dir).unwrap();
     }
 }

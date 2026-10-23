@@ -33,8 +33,9 @@ pub fn run(cfg: &Config, packages: &[String], force: bool) -> Result<()> {
 fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> Result<bool> {
     let spec = cfg.resolve_spec(arg.parse()?)?;
     let name = spec.name.as_str();
+    let existing = db.get(name)?;
 
-    if !force && db.get(name)?.is_some() {
+    if !force && existing.is_some() {
         log::info(format!(
             "{name} is already installed (use --force to reinstall)"
         ));
@@ -52,6 +53,11 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
     // --force skips the conflict check by passing no other packages.
     let others = if force { Vec::new() } else { db.all()? };
     let files = build::build_and_place(cfg, name, spec.target.as_deref(), &others)?;
+
+    // Only touch the old install after the new one has been built and placed.
+    if let Some(old) = &existing {
+        build::remove_stale(&old.files, &files);
+    }
 
     db.insert(InstalledPackage {
         name: name.to_owned(),

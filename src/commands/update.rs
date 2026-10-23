@@ -1,6 +1,3 @@
-use std::fs;
-use std::io;
-
 use super::build;
 use crate::config::Config;
 use crate::db::{Database, TomlStore};
@@ -56,7 +53,7 @@ fn update_one(cfg: &Config, db: &mut impl Database, name: &str) -> Result<()> {
 
     let installed = db.all()?;
     let files = build::build_and_place(cfg, name, old.target.as_deref(), &installed)?;
-    remove_stale(&old, &files);
+    build::remove_stale(&old.files, &files);
 
     db.insert(InstalledPackage {
         commit: Some(commit),
@@ -65,14 +62,4 @@ fn update_one(cfg: &Config, db: &mut impl Database, name: &str) -> Result<()> {
     })?;
     log::success(format!("updated {name}"));
     Ok(())
-}
-
-fn remove_stale(old: &InstalledPackage, new_files: &[std::path::PathBuf]) {
-    for path in old.files.iter().filter(|f| !new_files.contains(f)) {
-        match fs::remove_file(path) {
-            Ok(()) => {}
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-            Err(e) => log::warn(format!("could not remove {}: {e}", path.display())),
-        }
-    }
 }
