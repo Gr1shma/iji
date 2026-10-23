@@ -1,7 +1,7 @@
 use crate::commands::build;
 use crate::config::Config;
 use crate::db::{Database, TomlStore};
-use crate::package::{InstalledPackage, PackageSpec};
+use crate::package::InstalledPackage;
 use crate::util::log;
 use crate::{IjiError, Result};
 
@@ -31,7 +31,7 @@ pub fn run(cfg: &Config, packages: &[String], force: bool) -> Result<()> {
 }
 
 fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> Result<bool> {
-    let spec: PackageSpec = arg.parse()?;
+    let spec = cfg.resolve_spec(arg.parse()?)?;
     let name = spec.name.as_str();
 
     if !force && db.get(name)?.is_some() {

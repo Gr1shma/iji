@@ -16,7 +16,10 @@ pub enum IjiError {
     #[error("command failed: {0}")]
     CommandFailed(String),
 
-    #[error("no url given for `{0}`; pass a git URL (named packages are not supported yet)")]
+    #[error("invalid config: {0}")]
+    InvalidConfig(String),
+
+    #[error("no url for `{0}`; pass a git URL or add a `[repos.{0}]` entry to iji.toml")]
     NoUrl(String),
 
     #[error("{} is already installed by `{owner}`; use --force to overwrite", .path.display())]

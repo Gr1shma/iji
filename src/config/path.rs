@@ -20,28 +20,61 @@ fn expand_tilde(p: PathBuf) -> PathBuf {
     }
 }
 
+fn absolute(var: &str, p: PathBuf) -> Result<PathBuf> {
+    let p = expand_tilde(p);
+    if p.is_relative() {
+        return Err(IjiError::RelativePath {
+            var: var.to_owned(),
+            path: p,
+        });
+    }
+    path::absolute(&p).map_err(|source| IjiError::PathResolve { path: p, source })
+}
+
 fn resolve_with(
     env_key: &str,
     env_value: Option<OsString>,
     fallback: Option<PathBuf>,
 ) -> Result<PathBuf> {
     match non_empty_path(env_value) {
-        Some(p) => {
-            let p = expand_tilde(p);
-            if p.is_relative() {
-                return Err(IjiError::RelativePath {
-                    var: env_key.to_owned(),
-                    path: p,
-                });
-            }
-            path::absolute(&p).map_err(|source| IjiError::PathResolve { path: p, source })
-        }
+        Some(p) => absolute(env_key, p),
         None => fallback.ok_or(IjiError::NoHomeDir),
+    }
+}
+
+fn resolve_file_with(
+    env_key: &str,
+    file_key: &str,
+    env_value: Option<OsString>,
+    file_value: Option<PathBuf>,
+    fallback: Option<PathBuf>,
+) -> Result<PathBuf> {
+    match non_empty_path(env_value) {
+        Some(p) => absolute(env_key, p),
+        None => match non_empty_path(file_value.map(PathBuf::into_os_string)) {
+            Some(p) => absolute(file_key, p),
+            None => fallback.ok_or(IjiError::NoHomeDir),
+        },
     }
 }
 
 pub(super) fn resolve(env_key: &str, fallback: Option<PathBuf>) -> Result<PathBuf> {
     resolve_with(env_key, env::var_os(env_key), fallback)
+}
+
+pub(super) fn resolve_file(
+    env_key: &str,
+    file_key: &str,
+    file_value: Option<PathBuf>,
+    fallback: Option<PathBuf>,
+) -> Result<PathBuf> {
+    resolve_file_with(
+        env_key,
+        file_key,
+        env::var_os(env_key),
+        file_value,
+        fallback,
+    )
 }
 
 pub(super) fn path_var_contains(path_var: Option<OsString>, dir: &Path) -> bool {
@@ -85,6 +118,67 @@ mod tests {
     fn relative_env_is_rejected() {
         let err = resolve_with("IJI_X", os("bin"), Some("/fallback".into())).unwrap_err();
         assert!(matches!(err, IjiError::RelativePath { .. }));
+    }
+
+    #[test]
+    fn file_value_is_used_when_env_is_unset() {
+        let got = resolve_file_with(
+            "IJI_X",
+            "paths.x",
+            None,
+            Some("/from-file".into()),
+            Some("/fallback".into()),
+        )
+        .unwrap();
+        assert_eq!(got, PathBuf::from("/from-file"));
+    }
+
+    #[test]
+    fn env_wins_over_file_value() {
+        let got = resolve_file_with(
+            "IJI_X",
+            "paths.x",
+            os("/from-env"),
+            Some("/from-file".into()),
+            Some("/fallback".into()),
+        )
+        .unwrap();
+        assert_eq!(got, PathBuf::from("/from-env"));
+    }
+
+    #[test]
+    fn fallback_is_used_when_env_and_file_are_empty() {
+        let got = resolve_file_with(
+            "IJI_X",
+            "paths.x",
+            os(""),
+            Some(PathBuf::new()),
+            Some("/fallback".into()),
+        )
+        .unwrap();
+        assert_eq!(got, PathBuf::from("/fallback"));
+    }
+
+    #[test]
+    fn no_env_file_or_fallback_errors() {
+        let err = resolve_file_with("IJI_X", "paths.x", None, None, None).unwrap_err();
+        assert!(matches!(err, IjiError::NoHomeDir));
+    }
+
+    #[test]
+    fn relative_file_value_is_rejected() {
+        let err =
+            resolve_file_with("IJI_X", "paths.x", None, Some("bin".into()), None).unwrap_err();
+        assert!(matches!(err, IjiError::RelativePath { var, .. } if var == "paths.x"));
+    }
+
+    #[test]
+    fn tilde_in_file_value_is_expanded_to_home() {
+        if let Some(home) = dirs::home_dir() {
+            let got =
+                resolve_file_with("IJI_X", "paths.x", None, Some("~/bin".into()), None).unwrap();
+            assert_eq!(got, home.join("bin"));
+        }
     }
 
     #[test]
