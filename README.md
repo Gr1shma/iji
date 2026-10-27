@@ -20,7 +20,7 @@ cd iji
 cargo install --path .
 ```
 
-Building packages also needs the tool for whichever build system the repo uses (`cargo`, `go`, `cmake`, or `make`).
+Building packages also needs the tool for whichever build system the repo uses (`cargo`, `go`, `cmake`, `meson`, or `make`).
 
 By default, iji puts package binaries in `~/.local/bin`. If that folder isn't in your `PATH` yet, add it:
 
@@ -115,6 +115,7 @@ A target is useful when a repo builds more than one thing. What it means depends
 | Cargo | Binary name (`--bin`) |
 | Go | Package path, such as `cmd/foo` (defaults to `./...`) |
 | CMake | Build target (`--target`); the install step still runs afterward |
+| Meson | Build target for `meson compile`; the install step still runs afterward |
 | Make | Goal for the first `make` run; `make install` still runs afterward |
 
 For example, to build only the `cmd/foo` package in a Go repo:
@@ -132,9 +133,10 @@ iji is still pretty early, and it only runs on Unix. It detects the build system
 | Cargo | `Cargo.toml` | `cargo` |
 | Go | `go.mod` | `go` |
 | CMake | `CMakeLists.txt` | `cmake` |
+| Meson | `meson.build` | `meson` (and `ninja`) |
 | Make | `GNUmakefile`, `makefile`, or `Makefile` | `make` |
 
-Detection happens in that order. Go, CMake, and Make builds stage their executables in `usr/bin`, and iji copies those into your bin directory. Files a project installs elsewhere (libraries, data, man pages) aren't installed yet.
+Detection happens in that order. Go, CMake, Meson, and Make builds stage their executables in `usr/bin`, and iji copies those into your bin directory. Files a project installs elsewhere (libraries, data, man pages) aren't installed yet.
 
 When you run `update`, iji checks the latest commit and rebuilds only if something changed. If the package is pinned to a version, it gets skipped.
 

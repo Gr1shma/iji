@@ -2,12 +2,14 @@ mod cargo;
 mod cmake;
 mod go;
 mod make;
+mod meson;
 mod staged;
 
 pub use cargo::Cargo;
 pub use cmake::CMake;
 pub use go::Go;
 pub use make::Make;
+pub use meson::Meson;
 
 use std::path::{Path, PathBuf};
 
@@ -28,6 +30,8 @@ pub fn detect(src: &Path) -> Result<Box<dyn BuildSystem>> {
         Ok(Box::new(Cargo))
     } else if go::is_go_project(src) {
         Ok(Box::new(Go))
+    } else if meson::is_meson_project(src) {
+        Ok(Box::new(Meson))
     } else if cmake::is_cmake_project(src) {
         Ok(Box::new(CMake))
     } else if make::is_make_project(src) {
