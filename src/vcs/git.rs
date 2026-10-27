@@ -46,6 +46,25 @@ impl Vcs for Git {
         }
         Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
     }
+    fn remote_head(&self, url: &str) -> Result<String> {
+        let out = Command::new("git")
+            .args(["ls-remote", "--", url, "HEAD"])
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .map_err(|e| IjiError::CommandFailed(format!("could not run `git ls-remote`: {e}")))?;
+
+        if !out.status.success() {
+            return Err(IjiError::CommandFailed(format!(
+                "`git ls-remote` for {url} exited with {}",
+                out.status
+            )));
+        }
+        String::from_utf8_lossy(&out.stdout)
+            .split_whitespace()
+            .next()
+            .map(str::to_owned)
+            .ok_or_else(|| IjiError::CommandFailed(format!("{url} has no HEAD")))
+    }
 }
 
 #[cfg(test)]
@@ -102,6 +121,9 @@ mod tests {
         assert_eq!(head.len(), 40);
         assert!(head.chars().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(head, tagged);
+
+        assert_eq!(Git.remote_head(url).unwrap(), head);
+        assert!(Git.remote_head("/nonexistent/iji-repo").is_err());
 
         fs::remove_dir_all(&root).unwrap();
     }

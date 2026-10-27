@@ -3,6 +3,7 @@ use crate::config::Config;
 use crate::db::{Database, TomlStore};
 use crate::package::{InstalledPackage, validate_name};
 use crate::util::log;
+use crate::vcs::{Git, Vcs};
 use crate::{IjiError, Result};
 
 pub fn run(cfg: &Config, names: &[String]) -> Result<()> {
@@ -45,6 +46,13 @@ fn update_one(cfg: &Config, db: &mut impl Database, name: &str) -> Result<()> {
     }
 
     log::info(format!("checking {name} for updates"));
+    if old.commit.as_deref().is_some_and(|stored| {
+        Git.remote_head(&old.url)
+            .is_ok_and(|remote| remote == stored)
+    }) {
+        log::info(format!("{name} is up to date"));
+        return Ok(());
+    }
     let commit = build::fetch(cfg, name, &old.url, None)?;
     if old.commit.as_deref() == Some(commit.as_str()) {
         log::info(format!("{name} is up to date"));
