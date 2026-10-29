@@ -3,6 +3,7 @@ mod cmake;
 mod go;
 mod make;
 mod meson;
+mod script;
 mod staged;
 
 pub use cargo::Cargo;
@@ -10,6 +11,7 @@ pub use cmake::CMake;
 pub use go::Go;
 pub use make::Make;
 pub use meson::Meson;
+pub use script::{Script, ScriptSource};
 
 use std::path::{Path, PathBuf};
 

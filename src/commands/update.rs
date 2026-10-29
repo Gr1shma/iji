@@ -60,7 +60,7 @@ fn update_one(cfg: &Config, db: &mut impl Database, name: &str) -> Result<()> {
     }
 
     let installed = db.all()?;
-    let files = build::build_and_place(cfg, name, old.target.as_deref(), &installed)?;
+    let files = build::build_and_place(cfg, name, old.target.as_deref(), old.custom, &installed)?;
     build::remove_stale(&old.files, &files);
 
     db.insert(InstalledPackage {

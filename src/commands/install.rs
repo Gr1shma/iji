@@ -1,7 +1,7 @@
 use crate::commands::build;
 use crate::config::Config;
 use crate::db::{Database, TomlStore};
-use crate::package::InstalledPackage;
+use crate::package::{InstalledPackage, PackageSpec};
 use crate::util::log;
 use crate::{IjiError, Result};
 
@@ -31,7 +31,19 @@ pub fn run(cfg: &Config, packages: &[String], force: bool) -> Result<()> {
 }
 
 fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> Result<bool> {
-    let spec = cfg.resolve_spec(arg.parse()?)?;
+    let parsed: PackageSpec = arg.parse()?;
+    // Only a bare name can pick up a script from `[repos]`; a URL never does.
+    let custom = parsed.url.is_none()
+        && cfg
+            .repos
+            .get(&parsed.name)
+            .is_some_and(|r| r.run.is_some() || r.script.is_some());
+    let spec = cfg.resolve_spec(parsed)?;
+    if custom && spec.target.is_some() {
+        return Err(IjiError::InvalidSpec(
+            "a target cannot be combined with a custom script".into(),
+        ));
+    }
     let name = spec.name.as_str();
     let existing = db.get(name)?;
 
@@ -52,7 +64,7 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
 
     // --force skips the conflict check by passing no other packages.
     let others = if force { Vec::new() } else { db.all()? };
-    let files = build::build_and_place(cfg, name, spec.target.as_deref(), &others)?;
+    let files = build::build_and_place(cfg, name, spec.target.as_deref(), custom, &others)?;
 
     // Only touch the old install after the new one has been built and placed.
     if let Some(old) = &existing {
@@ -66,6 +78,7 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
         target: spec.target,
         commit: Some(commit),
         files,
+        custom,
     })?;
     log::success(format!("installed {name}"));
     Ok(true)

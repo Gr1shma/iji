@@ -2,6 +2,9 @@ use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
+use crate::builder::BuildSystem;
+use crate::builder::Script;
+use crate::builder::ScriptSource;
 use crate::builder::detect;
 use crate::config::Config;
 use crate::installer::place;
@@ -20,16 +23,39 @@ pub(crate) fn fetch(cfg: &Config, name: &str, url: &str, version: Option<&str>) 
     Git.head(&src)
 }
 
+/// Picks the configured script for custom packages, else detects the build system.
+fn select(cfg: &Config, name: &str, src: &Path, custom: bool) -> Result<Box<dyn BuildSystem>> {
+    if !custom {
+        return detect(src);
+    }
+    let repo = cfg.repos.get(name).ok_or_else(|| {
+        IjiError::InvalidConfig(format!(
+            "{name} uses a custom script, but repos.{name} is missing from iji.toml"
+        ))
+    })?;
+    let source = match (&repo.run, &repo.script) {
+        (Some(text), None) => ScriptSource::Inline(text.clone()),
+        (None, Some(path)) => ScriptSource::File(cfg.config_dir.join(path)),
+        _ => {
+            return Err(IjiError::InvalidConfig(format!(
+                "repos.{name} has no `run` or `script`"
+            )));
+        }
+    };
+    Ok(Box::new(Script::new(source)))
+}
+
 /// Builds the fetched source and places its artifacts, returning the installed files.
 pub(crate) fn build_and_place(
     cfg: &Config,
     name: &str,
     target: Option<&str>,
+    custom: bool,
     installed: &[InstalledPackage],
 ) -> Result<Vec<PathBuf>> {
     let src = cfg.source_dir(name);
     let stage = cfg.build_dir(name);
-    let builder = detect(&src)?;
+    let builder = select(cfg, name, &src, custom)?;
     log::info(format!("building {name} with {}", builder.name()));
     builder.build(&src, &stage, target)?;
 
@@ -91,6 +117,7 @@ mod tests {
             version: None,
             target: None,
             commit: None,
+            custom: false,
             files: files.iter().map(PathBuf::from).collect(),
         }
     }

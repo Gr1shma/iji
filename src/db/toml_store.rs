@@ -81,6 +81,7 @@ mod tests {
             target: None,
             commit: None,
             files: vec![PathBuf::from(format!("/bin/{name}"))],
+            custom: false,
         }
     }
 

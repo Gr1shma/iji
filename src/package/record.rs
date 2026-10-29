@@ -11,4 +11,6 @@ pub struct InstalledPackage {
     #[serde(default)]
     pub commit: Option<String>,
     pub files: Vec<PathBuf>,
+    #[serde(default)]
+    pub custom: bool,
 }
