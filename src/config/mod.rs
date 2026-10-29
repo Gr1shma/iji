@@ -142,6 +142,8 @@ mod tests {
             url: "https://example.com/foo".into(),
             version: Some("v1".into()),
             target: Some("foo-bin".into()),
+            run: None,
+            script: None,
         }
     }
 

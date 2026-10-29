@@ -126,6 +126,8 @@ fn bare_name_installs_from_configured_repo() {
             url: format!("file://{}", repo.display()),
             version: None,
             target: None,
+            run: None,
+            script: None,
         },
     );
 
@@ -165,6 +167,8 @@ fn repo_version_pins_updates() {
             url: format!("file://{}", repo.display()),
             version: Some("v1".into()),
             target: None,
+            run: None,
+            script: None,
         },
     );
 

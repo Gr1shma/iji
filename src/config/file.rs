@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use serde::Deserialize;
@@ -17,6 +17,10 @@ pub struct Repo {
     pub version: Option<String>,
     #[serde(default)]
     pub target: Option<String>,
+    #[serde(default)]
+    pub run: Option<String>,
+    #[serde(default)]
+    pub script: Option<PathBuf>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -72,8 +76,40 @@ impl ConfigFile {
                     "repos.{name}.target must not be empty"
                 )));
             }
+            if repo.run.is_some() && repo.script.is_some() {
+                return Err(IjiError::InvalidConfig(format!(
+                    "repos.{name} sets both `run` and `script`"
+                )));
+            }
+            if repo.run.as_deref().is_some_and(|r| r.trim().is_empty()) {
+                return Err(IjiError::InvalidConfig(format!(
+                    "repos.{name}.run must not be empty"
+                )));
+            }
+            if let Some(script) = &repo.script {
+                validate_script_path(name, script)?;
+            }
+            if repo.target.is_some() && (repo.run.is_some() || repo.script.is_some()) {
+                return Err(IjiError::InvalidConfig(format!(
+                    "repos.{name}: `target` cannot be combined with `run` or `script`"
+                )));
+            }
         }
         Ok(())
+    }
+}
+
+fn validate_script_path(name: &str, path: &Path) -> Result<()> {
+    let ok = path.file_name().is_some()
+        && path
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+    if ok {
+        Ok(())
+    } else {
+        Err(IjiError::InvalidConfig(format!(
+            "repos.{name}.script must be a relative path without `..`"
+        )))
     }
 }
 
@@ -199,6 +235,47 @@ mod tests {
                     "{field} = {value:?}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn parses_run_and_script() {
+        let file = ConfigFile::parse(
+            r#"
+            [repos.a]
+            url = "https://example.com/a"
+            run = "make"
+
+            [repos.b]
+            url = "https://example.com/b"
+            script = "scripts/b.sh"
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(file.repos["a"].run.as_deref(), Some("make"));
+        assert_eq!(
+            file.repos["b"].script.as_deref(),
+            Some(Path::new("scripts/b.sh"))
+        );
+    }
+
+    #[test]
+    fn rejects_bad_run_and_script() {
+        for extra in [
+            "run = \"make\"\nscript = \"a.sh\"",
+            "run = \"  \"",
+            "script = \"\"",
+            "script = \"/etc/evil.sh\"",
+            "script = \"../evil.sh\"",
+            "script = \"a/../../evil.sh\"",
+            "target = \"t\"\nrun = \"make\"",
+        ] {
+            let text = format!("[repos.foo]\nurl = \"https://example.com/r\"\n{extra}\n");
+            assert!(
+                matches!(ConfigFile::parse(&text), Err(IjiError::InvalidConfig(_))),
+                "{extra:?}"
+            );
         }
     }
 }
