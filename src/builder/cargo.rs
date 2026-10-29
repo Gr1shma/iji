@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -64,6 +65,7 @@ struct Package {
 #[derive(Deserialize)]
 struct BinEntry {
     name: String,
+    path: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -80,26 +82,32 @@ fn bin_names(src: &Path) -> Result<Vec<String>> {
         ))
     })?;
 
-    let mut names: Vec<String> = m
-        .bin
-        .unwrap_or_default()
-        .into_iter()
-        .map(|b| b.name)
+    let explicit = m.bin.unwrap_or_default();
+    let mut names: Vec<String> = explicit.iter().map(|b| b.name.clone()).collect();
+
+    let claimed: HashSet<PathBuf> = explicit
+        .iter()
+        .filter_map(|b| b.path.as_ref())
+        .map(|p| src.join(p))
         .collect();
 
     if pkg.autobins {
-        if src.join("src/main.rs").is_file() {
-            names.push(pkg.name);
+        let main_rs = src.join("src/main.rs");
+        if main_rs.is_file() && !claimed.contains(&main_rs) {
+            names.push(pkg.name.clone());
         }
         if let Ok(entries) = fs::read_dir(src.join("src/bin")) {
             for path in entries.flatten().map(|e| e.path()) {
-                let name = if path.is_dir() && path.join("main.rs").is_file() {
-                    path.file_name()
+                let (name, bin_path) = if path.is_dir() && path.join("main.rs").is_file() {
+                    (path.file_name(), path.join("main.rs"))
                 } else if path.extension().is_some_and(|x| x == "rs") {
-                    path.file_stem()
+                    (path.file_stem(), path.clone())
                 } else {
-                    None
+                    continue;
                 };
+                if claimed.contains(&bin_path) {
+                    continue;
+                }
                 if let Some(n) = name.and_then(|n| n.to_str()) {
                     names.push(n.to_owned());
                 }
@@ -122,6 +130,13 @@ fn bin_names(src: &Path) -> Result<Vec<String>> {
 mod tests {
     use super::*;
 
+    fn temp_dir(prefix: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("{prefix}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     fn write(root: &Path, rel: &str, text: &str) {
         let p = root.join(rel);
         fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -130,16 +145,13 @@ mod tests {
 
     #[test]
     fn discovers_bins() {
-        let root = std::env::temp_dir().join(format!("iji-bins-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root = temp_dir("iji-bins");
 
-        // implicit: src/main.rs + src/bin/bar.rs
         write(&root, "Cargo.toml", "[package]\nname = \"foo\"\n");
         write(&root, "src/main.rs", "");
         write(&root, "src/bin/bar.rs", "");
         assert_eq!(bin_names(&root).unwrap(), ["bar", "foo"]);
 
-        // autobins = false: only explicit [[bin]]
         write(
             &root,
             "Cargo.toml",
@@ -147,10 +159,29 @@ mod tests {
         );
         assert_eq!(bin_names(&root).unwrap(), ["only"]);
 
-        // workspace root: error
         write(&root, "Cargo.toml", "[workspace]\nmembers = []\n");
         assert!(matches!(bin_names(&root), Err(IjiError::InvalidSpec(_))));
 
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn explicit_bin_path_suppresses_implicit_main() {
+        let root = temp_dir("iji-bins-claim-main");
+        write(
+            &root,
+            "Cargo.toml",
+            r#"
+[package]
+name = "mypkg"
+
+[[bin]]
+name = "mytool"
+path = "src/main.rs"
+"#,
+        );
+        write(&root, "src/main.rs", "");
+        assert_eq!(bin_names(&root).unwrap(), ["mytool"]);
         fs::remove_dir_all(&root).unwrap();
     }
 }
