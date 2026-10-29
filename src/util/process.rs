@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::process::Stdio;
 use std::{path::Path, process::Command};
 
 use crate::util::log::{self, Verbosity};
@@ -57,6 +58,33 @@ fn tail(s: &str, n: usize) -> String {
     lines[lines.len().saturating_sub(n)..].join("\n")
 }
 
+pub fn capture(cmd: &str, args: &[&str], cwd: &Path) -> Result<String> {
+    let mut command = Command::new(cmd);
+    command.args(args).current_dir(cwd);
+    if log::verbosity() == Verbosity::Verbose {
+        command.stderr(Stdio::inherit());
+    }
+
+    let out = command.output().map_err(|e| {
+        IjiError::CommandFailed(format!("could not run `{cmd}` in {}: {e}", cwd.display()))
+    })?;
+    if !out.status.success() {
+        let mut msg = format!(
+            "`{cmd} {}` in {} exited with {}",
+            args.join(" "),
+            cwd.display(),
+            out.status
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if !stderr.trim().is_empty() {
+            msg.push('\n');
+            msg.push_str(&tail(&stderr, TAIL_LINES));
+        }
+        return Err(IjiError::CommandFailed(msg));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,5 +121,12 @@ mod tests {
         let ok = [OsStr::new("-c"), OsStr::new(r#"test "$IJI_TEST_VAR" = 1"#)];
         assert!(run_env("sh", &ok, &dir, &env).is_ok());
         assert!(run_env("sh", &ok, &dir, &[]).is_err());
+    }
+
+    #[test]
+    fn capture_returns_stdout() {
+        let dir = std::env::temp_dir();
+        assert_eq!(capture("echo", &["hi"], &dir).unwrap().trim(), "hi");
+        assert!(capture("false", &[], &dir).is_err());
     }
 }
