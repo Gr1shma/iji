@@ -52,6 +52,31 @@ fn make_bins_repo(root: &Path, name: &str, bins: &[&str]) -> PathBuf {
     repo
 }
 
+fn make_plain_repo(root: &Path, name: &str) -> PathBuf {
+    let repo = root.join(name);
+    fs::create_dir_all(&repo).unwrap();
+    fs::write(repo.join("README"), "no build system here\n").unwrap();
+
+    git(&repo, &["init", "-q"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "init"]);
+    repo
+}
+
+fn script_repo_entry(repo: &Path, run: &str) -> Repo {
+    Repo {
+        url: format!("file://{}", repo.display()),
+        version: None,
+        target: None,
+        run: Some(run.to_owned()),
+        script: None,
+    }
+}
+
+const INSTALL_TOOL: &str = r#"mkdir -p "$IJI_STAGE/usr/bin"
+printf '#!/bin/sh\n' > "$IJI_STAGE/usr/bin/tool"
+chmod +x "$IJI_STAGE/usr/bin/tool""#;
+
 #[test]
 fn install_then_remove_round_trip() {
     let root = std::env::temp_dir().join(format!("iji-flow-{}", std::process::id()));
@@ -278,6 +303,54 @@ fn update_rebuilds_only_when_upstream_changes() {
     git(&repo, &["commit", "-q", "-a", "-m", "v2"]);
     update::run(&cfg, &[]).unwrap();
     assert_ne!(db.get("hello-iji").unwrap().unwrap().commit, first);
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn custom_script_installs_and_removes() {
+    let root = std::env::temp_dir().join(format!("iji-flow-script-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    let repo = make_plain_repo(&root, "tool");
+    let mut cfg = Config::with_root(root.join("iji"));
+    cfg.repos
+        .insert("tool".to_owned(), script_repo_entry(&repo, INSTALL_TOOL));
+
+    install::run(&cfg, &["tool".to_owned()], false).unwrap();
+    let bin = cfg.bin_dir.join("tool");
+    assert!(bin.exists());
+
+    let db = TomlStore::new(cfg.db_file());
+    let installed = db.get("tool").unwrap().unwrap();
+    assert!(installed.custom);
+    assert_eq!(installed.files, [bin.clone()]);
+
+    remove::run(&cfg, &["tool".to_owned()]).unwrap();
+    assert!(!bin.exists());
+    assert!(db.get("tool").unwrap().is_none());
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn failing_script_keeps_the_old_install() {
+    let root = std::env::temp_dir().join(format!("iji-flow-script-fail-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    let repo = make_plain_repo(&root, "tool");
+    let mut cfg = Config::with_root(root.join("iji"));
+    cfg.repos
+        .insert("tool".to_owned(), script_repo_entry(&repo, INSTALL_TOOL));
+
+    install::run(&cfg, &["tool".to_owned()], false).unwrap();
+    let db = TomlStore::new(cfg.db_file());
+    let before = db.get("tool").unwrap().unwrap();
+
+    cfg.repos.get_mut("tool").unwrap().run = Some("exit 1".into());
+    let err = install::run(&cfg, &["tool".to_owned()], true).unwrap_err();
+
+    assert!(matches!(err, IjiError::PackagesFailed(1)));
+    assert!(cfg.bin_dir.join("tool").exists());
+    assert_eq!(db.get("tool").unwrap().unwrap(), before);
 
     fs::remove_dir_all(&root).unwrap();
 }
