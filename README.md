@@ -20,7 +20,7 @@ cd iji
 cargo install --path .
 ```
 
-Building packages also needs the tool for whichever build system the repo uses (`cargo`, `go`, `cmake`, `meson`, or `make`).
+Building packages also needs the tool for whichever build system the repo uses (`cargo`, `go`, `cmake`, `meson`, or `make`). Custom builds (see below) need `bash`.
 
 By default, iji puts package binaries in `~/.local/bin`. If that folder isn't in your `PATH` yet, add it:
 
@@ -114,8 +114,8 @@ A target is useful when a repo builds more than one thing. What it means depends
 | --- | --- |
 | Cargo | Binary name (`--bin`) |
 | Go | Package path, such as `cmd/foo` (defaults to `./...`) |
-| CMake | Build target (`--target`); the install step still runs afterward |
 | Meson | Build target for `meson compile`; the install step still runs afterward |
+| CMake | Build target (`--target`); the install step still runs afterward |
 | Make | Goal for the first `make` run; `make install` still runs afterward |
 
 For example, to build only the `cmd/foo` package in a Go repo:
@@ -123,6 +123,47 @@ For example, to build only the `cmd/foo` package in a Go repo:
 ```sh
 iji install https://github.com/u/r@v1.2,cmd/foo
 ```
+
+## Custom builds
+
+When auto-detection doesn't fit, a `[repos.<name>]` entry can supply its own build with `run` (inline bash) or `script` (a bash file):
+
+```toml
+[repos.example]
+url = "https://github.com/u/example"
+run = """
+meson setup build --prefix="$IJI_PREFIX"
+meson compile -C build
+meson install -C build --destdir "$IJI_STAGE"
+"""
+
+[repos.other]
+url = "https://github.com/u/other"
+script = "other.sh"   # relative to the iji config directory
+```
+
+The script runs in the cloned source directory and must install into a staging directory, not the real system. iji sets:
+
+| Variable | Value |
+| --- | --- |
+| `IJI_SRC` | The source directory (also the working directory) |
+| `IJI_STAGE` | The staging directory; iji empties it before each build |
+| `IJI_PREFIX` | `/usr` |
+
+After the script succeeds, iji copies the executables in `$IJI_STAGE/usr/bin` into your bin directory and records them, so `remove` deletes exactly those files. If the script fails, an existing install and its record are left untouched.
+
+Rules:
+
+- `run` and `script` are mutually exclusive, and `run` can't be empty. `run` is executed as `bash -euo pipefail -c`; `script` is executed as `bash <file>`, so the file sets its own flags.
+- `script` must be a relative path without `..`.
+- `target` can't be combined with `run` or `script`, in the config or on the command line.
+- The commands come only from `iji.toml`, never from the repo.
+- Only a bare name installed through `[repos]` uses the script. Installing by URL always auto-detects.
+- Like other builds, only `usr/bin` is installed; other staged files are ignored.
+
+`update` re-runs the script, so the `[repos.<name>]` entry (and the script file) must still exist. If it doesn't, `update` fails and leaves the install alone; it never falls back to auto-detection. Because `update` skips packages whose upstream commit hasn't changed, an edited script takes effect on the next upstream change or with `iji install --force <name>`.
+
+Don't use `sudo` in scripts and don't run iji as root. Build as your user and install into `$IJI_STAGE`. iji doesn't install system software (kernel modules, services, anything that needs root); use your distro or the project's own installer for those.
 
 ## What works
 
@@ -132,11 +173,11 @@ iji is still pretty early, and it only runs on Unix. It detects the build system
 | --- | --- | --- |
 | Cargo | `Cargo.toml` | `cargo` |
 | Go | `go.mod` | `go` |
-| CMake | `CMakeLists.txt` | `cmake` |
 | Meson | `meson.build` | `meson` (and `ninja`) |
+| CMake | `CMakeLists.txt` | `cmake` |
 | Make | `GNUmakefile`, `makefile`, or `Makefile` | `make` |
 
-Detection happens in that order. Go, CMake, Meson, and Make builds stage their executables in `usr/bin`, and iji copies those into your bin directory. Files a project installs elsewhere (libraries, data, man pages) aren't installed yet.
+Detection happens in that order, unless the repo entry sets `run` or `script`. Go, Meson, CMake, and Make builds stage their executables in `usr/bin`, and iji copies those into your bin directory. Files a project installs elsewhere (libraries, data, man pages) aren't installed yet.
 
 When you run `update`, iji checks the latest commit and rebuilds only if something changed. If the package is pinned to a version, it gets skipped.
 
