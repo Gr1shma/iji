@@ -323,7 +323,7 @@ fn custom_script_installs_and_removes() {
     let db = TomlStore::new(cfg.db_file());
     let installed = db.get("tool").unwrap().unwrap();
     assert!(installed.custom);
-    assert_eq!(installed.files, [bin.clone()]);
+    assert_eq!(installed.files, std::slice::from_ref(&bin));
 
     remove::run(&cfg, &["tool".to_owned()]).unwrap();
     assert!(!bin.exists());
