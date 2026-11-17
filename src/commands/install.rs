@@ -1,3 +1,6 @@
+use std::fs;
+use std::io;
+
 use crate::commands::build;
 use crate::config::Config;
 use crate::db::{Database, TomlStore};
@@ -54,32 +57,46 @@ fn install_one(cfg: &Config, db: &mut impl Database, arg: &str, force: bool) -> 
         return Ok(false);
     }
 
+    let first_install = existing.is_none();
+
     let url = spec
         .url
         .clone()
         .ok_or_else(|| IjiError::NoUrl(name.to_owned()))?;
 
     log::info(format!("fetching {name} from {url}"));
-    let commit = build::fetch(cfg, name, &url, spec.version.as_deref())?;
+    let result = (|| {
+        let commit = build::fetch(cfg, name, &url, spec.version.as_deref())?;
 
-    // --force skips the conflict check by passing no other packages.
-    let others = if force { Vec::new() } else { db.all()? };
-    let files = build::build_and_place(cfg, name, spec.target.as_deref(), custom, &others)?;
+        // --force skips the conflict check by passing no other packages.
+        let others = if force { Vec::new() } else { db.all()? };
+        let files = build::build_and_place(cfg, name, spec.target.as_deref(), custom, &others)?;
 
-    // Only touch the old install after the new one has been built and placed.
-    if let Some(old) = &existing {
-        build::remove_stale(&old.files, &files);
+        if let Some(old) = &existing {
+            build::remove_stale(&old.files, &files);
+        }
+
+        db.insert(InstalledPackage {
+            name: name.to_owned(),
+            url,
+            version: spec.version,
+            target: spec.target,
+            commit: Some(commit),
+            files,
+            custom,
+        })
+    })();
+
+    if result.is_err() && first_install {
+        let src = cfg.source_dir(name);
+        match fs::remove_dir_all(&src) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => log::warn(format!("could not remove {}: {e}", src.display())),
+        }
     }
+    result?;
 
-    db.insert(InstalledPackage {
-        name: name.to_owned(),
-        url,
-        version: spec.version,
-        target: spec.target,
-        commit: Some(commit),
-        files,
-        custom,
-    })?;
     log::success(format!("installed {name}"));
     Ok(true)
 }

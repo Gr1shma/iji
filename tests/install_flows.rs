@@ -333,6 +333,28 @@ fn custom_script_installs_and_removes() {
 }
 
 #[test]
+fn failed_first_install_removes_the_source() {
+    let root = std::env::temp_dir().join(format!("iji-flow-first-fail-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    let repo = make_plain_repo(&root, "tool");
+    let mut cfg = Config::with_root(root.join("iji"));
+    cfg.repos
+        .insert("tool".to_owned(), script_repo_entry(&repo, "exit 1"));
+
+    let src = cfg.source_dir("tool");
+    let err = install::run(&cfg, &["tool".to_owned()], false).unwrap_err();
+
+    assert!(matches!(err, IjiError::PackagesFailed(1)));
+    assert!(
+        !src.exists(),
+        "source should be cleaned up after a failed first install"
+    );
+    assert!(TomlStore::new(cfg.db_file()).all().unwrap().is_empty());
+
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn failing_script_keeps_the_old_install() {
     let root = std::env::temp_dir().join(format!("iji-flow-script-fail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
