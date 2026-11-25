@@ -121,13 +121,13 @@ mod tests {
     fn parses_repos_and_paths() {
         let file = ConfigFile::parse(
             r#"
-            [repos.pkgit]
-            url = "https://git.symlinx.net/pkgit"
+            [repos.foo]
+            url = "https://github.com/u/foo"
 
-            [repos.mytool]
-            url = "https://github.com/u/mytool"
+            [repos.bar]
+            url = "https://github.com/u/bar"
             version = "v1.2"
-            target = "mytool"
+            target = "bar"
 
             [paths]
             bin_dir = "~/.local/bin"
@@ -137,14 +137,14 @@ mod tests {
         )
         .unwrap();
 
-        let mytool = file.repos.get("mytool").unwrap();
-        assert_eq!(mytool.url, "https://github.com/u/mytool");
-        assert_eq!(mytool.version.as_deref(), Some("v1.2"));
-        assert_eq!(mytool.target.as_deref(), Some("mytool"));
+        let bar = file.repos.get("bar").unwrap();
+        assert_eq!(bar.url, "https://github.com/u/bar");
+        assert_eq!(bar.version.as_deref(), Some("v1.2"));
+        assert_eq!(bar.target.as_deref(), Some("bar"));
 
-        let pkgit = file.repos.get("pkgit").unwrap();
-        assert_eq!(pkgit.version, None);
-        assert_eq!(pkgit.target, None);
+        let foo = file.repos.get("foo").unwrap();
+        assert_eq!(foo.version, None);
+        assert_eq!(foo.target, None);
 
         assert_eq!(
             file.paths.bin_dir.as_deref(),

@@ -73,30 +73,30 @@ fn script_repo_entry(repo: &Path, run: &str) -> Repo {
     }
 }
 
-const INSTALL_TOOL: &str = r#"mkdir -p "$IJI_STAGE/usr/bin"
-printf '#!/bin/sh\n' > "$IJI_STAGE/usr/bin/tool"
-chmod +x "$IJI_STAGE/usr/bin/tool""#;
+const INSTALL_BAZ: &str = r#"mkdir -p "$IJI_STAGE/usr/bin"
+printf '#!/bin/sh\n' > "$IJI_STAGE/usr/bin/baz"
+chmod +x "$IJI_STAGE/usr/bin/baz""#;
 
 #[test]
 fn install_then_remove_round_trip() {
     let root = std::env::temp_dir().join(format!("iji-flow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_repo(&root, "hello-iji");
+    let repo = make_repo(&root, "foo");
     let cfg = Config::with_root(root.join("iji"));
     let url = format!("file://{}", repo.display());
 
     install::run(&cfg, std::slice::from_ref(&url), false).unwrap();
-    let bin = cfg.bin_dir.join("hello-iji");
+    let bin = cfg.bin_dir.join("foo");
     assert!(bin.exists());
     let db = TomlStore::new(cfg.db_file());
-    assert!(db.get("hello-iji").unwrap().is_some());
+    assert!(db.get("foo").unwrap().is_some());
 
     // Reinstalling without --force is a skip, not an error.
     install::run(&cfg, &[url], false).unwrap();
 
-    remove::run(&cfg, &["hello-iji".to_owned()]).unwrap();
+    remove::run(&cfg, &["foo".to_owned()]).unwrap();
     assert!(!bin.exists());
-    assert!(db.get("hello-iji").unwrap().is_none());
+    assert!(db.get("foo").unwrap().is_none());
 
     fs::remove_dir_all(&root).unwrap();
 }
@@ -105,7 +105,7 @@ fn install_then_remove_round_trip() {
 fn force_reinstall_removes_stale_files() {
     let root = std::env::temp_dir().join(format!("iji-flow-force-stale-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_bins_repo(&root, "two-bins", &["a", "b"]);
+    let repo = make_bins_repo(&root, "bar", &["a", "b"]);
     let cfg = Config::with_root(root.join("iji"));
     let url = format!("file://{}", repo.display());
     let db = TomlStore::new(cfg.db_file());
@@ -121,7 +121,7 @@ fn force_reinstall_removes_stale_files() {
     assert!(cfg.bin_dir.join("a").exists());
     assert!(!cfg.bin_dir.join("b").exists());
 
-    let installed = db.get("two-bins").unwrap().unwrap();
+    let installed = db.get("bar").unwrap().unwrap();
     assert_eq!(installed.files, [cfg.bin_dir.join("a")]);
 
     fs::remove_dir_all(&root).unwrap();
@@ -143,10 +143,10 @@ fn bare_name_fails_without_touching_the_db() {
 fn bare_name_installs_from_configured_repo() {
     let root = std::env::temp_dir().join(format!("iji-flow-repo-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_repo(&root, "hello-iji");
+    let repo = make_repo(&root, "foo");
     let mut cfg = Config::with_root(root.join("iji"));
     cfg.repos.insert(
-        "hello-iji".to_owned(),
+        "foo".to_owned(),
         Repo {
             url: format!("file://{}", repo.display()),
             version: None,
@@ -156,18 +156,18 @@ fn bare_name_installs_from_configured_repo() {
         },
     );
 
-    install::run(&cfg, &["hello-iji".to_owned()], false).unwrap();
-    assert!(cfg.bin_dir.join("hello-iji").exists());
+    install::run(&cfg, &["foo".to_owned()], false).unwrap();
+    assert!(cfg.bin_dir.join("foo").exists());
 
     let db = TomlStore::new(cfg.db_file());
-    let installed = db.get("hello-iji").unwrap().unwrap();
+    let installed = db.get("foo").unwrap().unwrap();
     assert_eq!(installed.url, format!("file://{}", repo.display()));
 
     // Updates and removals use the recorded URL, so the config can disappear.
     cfg.repos.clear();
-    update::run(&cfg, &["hello-iji".to_owned()]).unwrap();
-    remove::run(&cfg, &["hello-iji".to_owned()]).unwrap();
-    assert!(db.get("hello-iji").unwrap().is_none());
+    update::run(&cfg, &["foo".to_owned()]).unwrap();
+    remove::run(&cfg, &["foo".to_owned()]).unwrap();
+    assert!(db.get("foo").unwrap().is_none());
 
     fs::remove_dir_all(&root).unwrap();
 }
@@ -176,7 +176,7 @@ fn bare_name_installs_from_configured_repo() {
 fn repo_version_pins_updates() {
     let root = std::env::temp_dir().join(format!("iji-flow-pinned-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_repo(&root, "hello-iji");
+    let repo = make_repo(&root, "foo");
     git(&repo, &["tag", "v1"]);
     fs::write(
         repo.join("src/main.rs"),
@@ -187,7 +187,7 @@ fn repo_version_pins_updates() {
 
     let mut cfg = Config::with_root(root.join("iji"));
     cfg.repos.insert(
-        "hello-iji".to_owned(),
+        "foo".to_owned(),
         Repo {
             url: format!("file://{}", repo.display()),
             version: Some("v1".into()),
@@ -197,12 +197,12 @@ fn repo_version_pins_updates() {
         },
     );
 
-    install::run(&cfg, &["hello-iji".to_owned()], false).unwrap();
+    install::run(&cfg, &["foo".to_owned()], false).unwrap();
     let db = TomlStore::new(cfg.db_file());
-    let first = db.get("hello-iji").unwrap().unwrap().commit;
+    let first = db.get("foo").unwrap().unwrap().commit;
 
     update::run(&cfg, &[]).unwrap();
-    assert_eq!(db.get("hello-iji").unwrap().unwrap().commit, first);
+    assert_eq!(db.get("foo").unwrap().unwrap().commit, first);
 
     fs::remove_dir_all(&root).unwrap();
 }
@@ -211,13 +211,13 @@ fn repo_version_pins_updates() {
 fn config_file_drives_repo_lookup_and_paths() {
     let root = std::env::temp_dir().join(format!("iji-flow-config-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_repo(&root, "hello-iji");
+    let repo = make_repo(&root, "foo");
     let config_dir = root.join("config");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
         config_dir.join("iji.toml"),
         format!(
-            "[repos.hello-iji]\nurl = \"file://{}\"\n\n[paths]\nbin_dir = \"{}/custom-bin\"\ncache_dir = \"{}/custom-cache\"\nsource_dir = \"{}/custom-src\"\n",
+            "[repos.foo]\nurl = \"file://{}\"\n\n[paths]\nbin_dir = \"{}/custom-bin\"\ncache_dir = \"{}/custom-cache\"\nsource_dir = \"{}/custom-src\"\n",
             repo.display(),
             root.display(),
             root.display(),
@@ -227,7 +227,7 @@ fn config_file_drives_repo_lookup_and_paths() {
     .unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_iji"))
-        .args(["--quiet", "install", "hello-iji"])
+        .args(["--quiet", "install", "foo"])
         .env("IJI_CONFIG_DIR", &config_dir)
         .env("IJI_DATA_DIR", root.join("data"))
         .env_remove("IJI_BIN_DIR")
@@ -238,9 +238,9 @@ fn config_file_drives_repo_lookup_and_paths() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{stderr}");
-    assert!(root.join("custom-bin/hello-iji").exists());
-    assert!(root.join("custom-src/hello-iji").is_dir());
-    assert!(!root.join("custom-cache/src/hello-iji").exists());
+    assert!(root.join("custom-bin/foo").exists());
+    assert!(root.join("custom-src/foo").is_dir());
+    assert!(!root.join("custom-cache/src/foo").exists());
     assert!(root.join("custom-cache").is_dir());
     assert!(root.join("data/installed.toml").is_file());
 
@@ -283,17 +283,17 @@ fn relative_path_in_config_is_rejected() {
 fn update_rebuilds_only_when_upstream_changes() {
     let root = std::env::temp_dir().join(format!("iji-flow-update-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_repo(&root, "hello-iji");
+    let repo = make_repo(&root, "foo");
     let cfg = Config::with_root(root.join("iji"));
     let url = format!("file://{}", repo.display());
     let db = TomlStore::new(cfg.db_file());
 
     install::run(&cfg, &[url], false).unwrap();
-    let first = db.get("hello-iji").unwrap().unwrap().commit;
+    let first = db.get("foo").unwrap().unwrap().commit;
     assert!(first.is_some());
 
     update::run(&cfg, &[]).unwrap();
-    assert_eq!(db.get("hello-iji").unwrap().unwrap().commit, first);
+    assert_eq!(db.get("foo").unwrap().unwrap().commit, first);
 
     fs::write(
         repo.join("src/main.rs"),
@@ -302,7 +302,7 @@ fn update_rebuilds_only_when_upstream_changes() {
     .unwrap();
     git(&repo, &["commit", "-q", "-a", "-m", "v2"]);
     update::run(&cfg, &[]).unwrap();
-    assert_ne!(db.get("hello-iji").unwrap().unwrap().commit, first);
+    assert_ne!(db.get("foo").unwrap().unwrap().commit, first);
 
     fs::remove_dir_all(&root).unwrap();
 }
@@ -311,23 +311,23 @@ fn update_rebuilds_only_when_upstream_changes() {
 fn custom_script_installs_and_removes() {
     let root = std::env::temp_dir().join(format!("iji-flow-script-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_plain_repo(&root, "tool");
+    let repo = make_plain_repo(&root, "baz");
     let mut cfg = Config::with_root(root.join("iji"));
     cfg.repos
-        .insert("tool".to_owned(), script_repo_entry(&repo, INSTALL_TOOL));
+        .insert("baz".to_owned(), script_repo_entry(&repo, INSTALL_BAZ));
 
-    install::run(&cfg, &["tool".to_owned()], false).unwrap();
-    let bin = cfg.bin_dir.join("tool");
+    install::run(&cfg, &["baz".to_owned()], false).unwrap();
+    let bin = cfg.bin_dir.join("baz");
     assert!(bin.exists());
 
     let db = TomlStore::new(cfg.db_file());
-    let installed = db.get("tool").unwrap().unwrap();
+    let installed = db.get("baz").unwrap().unwrap();
     assert!(installed.custom);
     assert_eq!(installed.files, std::slice::from_ref(&bin));
 
-    remove::run(&cfg, &["tool".to_owned()]).unwrap();
+    remove::run(&cfg, &["baz".to_owned()]).unwrap();
     assert!(!bin.exists());
-    assert!(db.get("tool").unwrap().is_none());
+    assert!(db.get("baz").unwrap().is_none());
 
     fs::remove_dir_all(&root).unwrap();
 }
@@ -336,13 +336,13 @@ fn custom_script_installs_and_removes() {
 fn failed_first_install_removes_the_source() {
     let root = std::env::temp_dir().join(format!("iji-flow-first-fail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_plain_repo(&root, "tool");
+    let repo = make_plain_repo(&root, "baz");
     let mut cfg = Config::with_root(root.join("iji"));
     cfg.repos
-        .insert("tool".to_owned(), script_repo_entry(&repo, "exit 1"));
+        .insert("baz".to_owned(), script_repo_entry(&repo, "exit 1"));
 
-    let src = cfg.source_dir("tool");
-    let err = install::run(&cfg, &["tool".to_owned()], false).unwrap_err();
+    let src = cfg.source_dir("baz");
+    let err = install::run(&cfg, &["baz".to_owned()], false).unwrap_err();
 
     assert!(matches!(err, IjiError::PackagesFailed(1)));
     assert!(
@@ -358,21 +358,21 @@ fn failed_first_install_removes_the_source() {
 fn failing_script_keeps_the_old_install() {
     let root = std::env::temp_dir().join(format!("iji-flow-script-fail-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
-    let repo = make_plain_repo(&root, "tool");
+    let repo = make_plain_repo(&root, "baz");
     let mut cfg = Config::with_root(root.join("iji"));
     cfg.repos
-        .insert("tool".to_owned(), script_repo_entry(&repo, INSTALL_TOOL));
+        .insert("baz".to_owned(), script_repo_entry(&repo, INSTALL_BAZ));
 
-    install::run(&cfg, &["tool".to_owned()], false).unwrap();
+    install::run(&cfg, &["baz".to_owned()], false).unwrap();
     let db = TomlStore::new(cfg.db_file());
-    let before = db.get("tool").unwrap().unwrap();
+    let before = db.get("baz").unwrap().unwrap();
 
-    cfg.repos.get_mut("tool").unwrap().run = Some("exit 1".into());
-    let err = install::run(&cfg, &["tool".to_owned()], true).unwrap_err();
+    cfg.repos.get_mut("baz").unwrap().run = Some("exit 1".into());
+    let err = install::run(&cfg, &["baz".to_owned()], true).unwrap_err();
 
     assert!(matches!(err, IjiError::PackagesFailed(1)));
-    assert!(cfg.bin_dir.join("tool").exists());
-    assert_eq!(db.get("tool").unwrap().unwrap(), before);
+    assert!(cfg.bin_dir.join("baz").exists());
+    assert_eq!(db.get("baz").unwrap().unwrap(), before);
 
     fs::remove_dir_all(&root).unwrap();
 }

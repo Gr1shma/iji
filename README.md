@@ -57,25 +57,25 @@ These options work with every command:
 Give iji a git URL:
 
 ```sh
-iji install https://github.com/u/r
+iji install https://github.com/u/foo
 ```
 
 If you install the same repos often, give them short names in `iji.toml`:
 
 ```toml
-[repos.pkgit]
-url = "https://git.symlinx.net/pkgit"
+[repos.foo]
+url = "https://github.com/u/foo"
 
-[repos.mytool]
-url = "https://github.com/u/mytool"
-version = "v1.2"   # optional, same as `mytool@v1.2`
-target = "mytool"  # optional, same as `mytool,mytool`
+[repos.bar]
+url = "https://github.com/u/bar"
+version = "v1.2"   # optional, same as `bar@v1.2`
+target = "bar"     # optional, same as `bar,bar`
 ```
 
 A bare package name looks up `[repos.<name>]`:
 
 ```sh
-iji install pkgit
+iji install foo
 ```
 
 Repo keys must be valid package names. Letters, digits, `-`, `_`, and `.` are allowed, but a name can't start with `.`.
@@ -83,7 +83,7 @@ Repo keys must be valid package names. Letters, digits, `-`, `_`, and `.` are al
 A version or target given on the command line wins over the repo entry:
 
 ```sh
-iji install mytool@v2
+iji install bar@v2
 ```
 
 The database stores the resolved URL, so `update` and `remove` keep working even if you remove the repo from the config later. A repo entry with a `version` counts as pinned, so `update` skips it.
@@ -95,8 +95,8 @@ You can also choose a version or a target for a URL:
 ```
 
 ```sh
-iji install https://github.com/u/r@v1.2
-iji install https://github.com/u/r@v1.2,mytool
+iji install https://github.com/u/foo@v1.2
+iji install https://github.com/u/foo@v1.2,bar
 ```
 
 The package name comes from the end of the URL, with `.git` removed. Add `@version` to install a tag or branch. Packages installed with a version stay on that version, so `update` leaves them alone.
@@ -104,8 +104,8 @@ The package name comes from the end of the URL, with `.git` removed. Add `@versi
 To update or remove a package, use its name: the `[repos.<name>]` key for bare installs, or the last part of the URL for URL installs:
 
 ```sh
-iji update r
-iji remove r
+iji update foo
+iji remove foo
 ```
 
 A target is useful when a repo builds more than one thing. What it means depends on the build system:
@@ -113,15 +113,15 @@ A target is useful when a repo builds more than one thing. What it means depends
 | Build system | `target` |
 | --- | --- |
 | Cargo | Binary name (`--bin`) |
-| Go | Package path, such as `cmd/foo` (defaults to `./...`) |
+| Go | Package path, such as `cmd/bar` (defaults to `./...`) |
 | Meson | Build target for `meson compile`; the install step still runs afterward |
 | CMake | Build target (`--target`); the install step still runs afterward |
 | Make | Goal for the first `make` run; `make install` still runs afterward |
 
-For example, to build only the `cmd/foo` package in a Go repo:
+For example, to build only the `cmd/bar` package in a Go repo:
 
 ```sh
-iji install https://github.com/u/r@v1.2,cmd/foo
+iji install https://github.com/u/foo@v1.2,cmd/bar
 ```
 
 ## Custom builds
@@ -129,17 +129,17 @@ iji install https://github.com/u/r@v1.2,cmd/foo
 When auto-detection doesn't fit, a `[repos.<name>]` entry can supply its own build with `run` (inline bash) or `script` (a bash file):
 
 ```toml
-[repos.example]
-url = "https://github.com/u/example"
+[repos.baz]
+url = "https://github.com/u/baz"
 run = """
 meson setup build --prefix="$IJI_PREFIX"
 meson compile -C build
 meson install -C build --destdir "$IJI_STAGE"
 """
 
-[repos.other]
-url = "https://github.com/u/other"
-script = "other.sh"   # relative to the iji config directory
+[repos.qux]
+url = "https://github.com/u/qux"
+script = "qux.sh"      # relative to the iji config directory
 ```
 
 The script runs in the cloned source directory and must install into a staging directory, not the real system. iji sets:
